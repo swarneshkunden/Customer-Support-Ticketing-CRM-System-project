@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ticket</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <a href="/">Support Tickets</a>
+    <a class="button" href="new.html">New ticket</a>
+  </header>
+  <main>
+    <p id="message" role="status">Loading ticket...</p>
+    <div id="content" hidden>
+      <p><a href="/">Back to all tickets</a></p>
+      <h1 id="subject"></h1>
+      <p class="meta"><span id="ticket-id"></span> <span id="badge" class="badge"></span></p>
+      <div class="detail-layout">
+        <div>
+          <section class="panel">
+            <h2>Description</h2>
+            <p id="description"></p>
+          </section>
+          <section class="panel">
+            <h2>Notes</h2>
+            <p id="no-notes">No notes yet.</p>
+            <ul id="notes"></ul>
+          </section>
+        </div>
+        <div>
+          <section class="panel">
+            <h2>Customer</h2>
+            <dl>
+              <dt>Name</dt><dd id="name"></dd>
+              <dt>Email</dt><dd><a id="email"></a></dd>
+              <dt>Created</dt><dd id="created"></dd>
+              <dt>Last updated</dt><dd id="updated"></dd>
+            </dl>
+          </section>
+          <form id="update" class="panel">
+            <h2>Update ticket</h2>
+            <label>Status
+              <select id="status">
+                <option>Open</option>
+                <option>In Progress</option>
+                <option>Closed</option>
+              </select>
+            </label>
+            <label>Add a note (optional) <textarea id="note" rows="3"></textarea></label>
+            <button>Save changes</button>
+            <p id="save-msg" role="status"></p>
+            <p><button type="button" id="delete" class="danger">Delete ticket</button></p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const id = new URLSearchParams(location.search).get("id");
+    const $ = name => document.getElementById(name);
+    const when = date => new Date(date).toLocaleString();
+
+    function showMessage(html) {
+      $("content").hidden = true;
+      $("message").hidden = false;
+      $("message").innerHTML = html;
+    }
+
+    async function load() {
+      let res;
+      try {
+        res = await fetch("/api/tickets/" + encodeURIComponent(id));
+      } catch {
+        showMessage("Could not reach the server. Check your connection and refresh the page.");
+        return;
+      }
+      if (res.status === 404) {
+        showMessage('Ticket not found. <a href="/">Back to all tickets</a>');
+        return;
+      }
+      if (!res.ok) {
+        showMessage("Could not load this ticket. Try refreshing the page.");
+        return;
+      }
+      const t = await res.json();
+      document.title = t.ticket_id + ": " + t.subject;
+      $("subject").textContent = t.subject;
+      $("ticket-id").textContent = t.ticket_id;
+      $("badge").textContent = t.status;
+      $("badge").dataset.s = t.status;
+      $("description").textContent = t.description;
+      $("name").textContent = t.customer_name;
+      $("email").textContent = t.customer_email;
+      $("email").href = "mailto:" + t.customer_email;
+      $("created").textContent = when(t.created_at);
+      $("updated").textContent = when(t.updated_at);
+      $("status").value = t.status;
+      $("no-notes").hidden = t.notes.length > 0;
+      $("notes").innerHTML = "";
+      t.notes.forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n.note_text;
+        const time = document.createElement("small");
+        time.textContent = when(n.created_at);
+        li.appendChild(time);
+        $("notes").appendChild(li);
+      });
+      $("message").hidden = true;
+      $("content").hidden = false;
+    }
+
+    $("update").onsubmit = async e => {
+      e.preventDefault();
+      const button = e.target.querySelector("button");
+      button.disabled = true;
+      button.textContent = "Saving...";
+      let ok = false;
+      try {
+        const res = await fetch("/api/tickets/" + encodeURIComponent(id), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: $("status").value, notes: $("note").value })
+        });
+        ok = res.ok;
+      } catch {}
+      if (ok) {
+        $("note").value = "";
+        await load();
+      }
+      $("save-msg").className = ok ? "" : "error";
+      $("save-msg").textContent = ok ? "Changes saved." : "Could not save the changes. Check your connection and try again.";
+      button.disabled = false;
+      button.textContent = "Save changes";
+    };
+
+    $("delete").onclick = async () => {
+      if (!confirm("Delete this ticket and its notes? This cannot be undone.")) return;
+      let ok = false;
+      try {
+        ok = (await fetch("/api/tickets/" + encodeURIComponent(id), { method: "DELETE" })).ok;
+      } catch {}
+      if (ok) {
+        location.href = "/";
+        return;
+      }
+      $("save-msg").className = "error";
+      $("save-msg").textContent = "Could not delete the ticket. Check your connection and try again.";
+    };
+
+    load();
+  </script>
+</body>
+</html>

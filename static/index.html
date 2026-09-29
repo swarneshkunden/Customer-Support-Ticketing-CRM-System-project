@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customer Support Ticketing CRM System</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <a href="/">Customer Support Ticketing CRM</a>
+    <a class="button" href="new.html">New ticket</a>
+  </header>
+  <main>
+    <h1>All tickets</h1>
+    <div class="filters">
+      <input id="search" type="search" aria-label="Search tickets" placeholder="Search by name, ID, email or description">
+      <select id="status" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option>Open</option>
+        <option>In Progress</option>
+        <option>Closed</option>
+      </select>
+    </div>
+    <p id="message" role="status"></p>
+    <div id="wrap" class="table-wrap" hidden>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Title</th><th>Status</th><th>Date</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="pager" class="pager" hidden>
+      <button id="prev" type="button">Previous</button>
+      <span id="page-label"></span>
+      <button id="next" type="button">Next</button>
+    </div>
+  </main>
+  <script>
+    const rows = document.getElementById("rows");
+    const search = document.getElementById("search");
+    const status = document.getElementById("status");
+    const message = document.getElementById("message");
+    const wrap = document.getElementById("wrap");
+    const pager = document.getElementById("pager");
+    const prev = document.getElementById("prev");
+    const next = document.getElementById("next");
+    const PAGE_SIZE = 20;
+    let page = 0;
+    let latest = 0;
+
+    function cell(tr, label, text = "") {
+      const td = tr.insertCell();
+      td.dataset.label = label;
+      td.textContent = text;
+      return td;
+    }
+
+    async function load() {
+      const request = ++latest;
+      message.className = "";
+      if (!rows.children.length) message.textContent = "Loading tickets...";
+      try {
+        const res = await fetch("/api/tickets?" + new URLSearchParams({ search: search.value, status: status.value, limit: PAGE_SIZE + 1, offset: page * PAGE_SIZE }));
+        if (!res.ok) throw new Error();
+        const found = await res.json();
+        if (request !== latest) return;
+        const tickets = found.slice(0, PAGE_SIZE);
+        pager.hidden = page === 0 && found.length <= PAGE_SIZE;
+        prev.disabled = page === 0;
+        next.disabled = found.length <= PAGE_SIZE;
+        document.getElementById("page-label").textContent = "Page " + (page + 1);
+        rows.innerHTML = "";
+        wrap.hidden = tickets.length === 0;
+        if (tickets.length === 0) {
+          message.innerHTML = search.value || status.value
+            ? "No tickets match your search. Try different words or clear the status filter."
+            : 'No tickets yet. <a href="new.html">Create the first ticket</a>.';
+        } else {
+          message.textContent = "";
+        }
+        tickets.forEach(t => {
+          const tr = rows.insertRow();
+          cell(tr, "ID", t.ticket_id);
+          cell(tr, "Name", t.customer_name);
+          const link = document.createElement("a");
+          link.href = "ticket.html?id=" + t.ticket_id;
+          link.textContent = t.subject;
+          cell(tr, "Title").appendChild(link);
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.dataset.s = t.status;
+          badge.textContent = t.status;
+          cell(tr, "Status").appendChild(badge);
+          cell(tr, "Date", new Date(t.created_at).toLocaleDateString());
+        });
+      } catch {
+        if (request !== latest) return;
+        wrap.hidden = true;
+        pager.hidden = true;
+        message.className = "error";
+        message.textContent = "Could not load tickets. Check your connection and refresh the page.";
+      }
+    }
+
+    search.oninput = () => { page = 0; load(); };
+    status.onchange = () => { page = 0; load(); };
+    prev.onclick = () => { page--; load(); };
+    next.onclick = () => { page++; load(); };
+    load();
+  </script>
+</body>
+</html>

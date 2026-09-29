@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New ticket</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <a href="/">Support Tickets</a>
+  </header>
+  <main class="narrow">
+    <h1>New ticket</h1>
+    <form id="form" class="panel">
+      <label>Customer name <input name="customer_name" required></label>
+      <label>Customer email <input name="customer_email" type="email" autocomplete="email" required></label>
+      <label>Subject <input name="subject" required></label>
+      <label>Description <textarea name="description" rows="6" required></textarea></label>
+      <p id="error" class="error" role="alert"></p>
+      <button>Create ticket</button>
+      <a href="/">Cancel</a>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById("form");
+    const button = form.querySelector("button");
+    const error = document.getElementById("error");
+
+    form.onsubmit = async e => {
+      e.preventDefault();
+      button.disabled = true;
+      button.textContent = "Creating ticket...";
+      error.textContent = "";
+      try {
+        const res = await fetch("/api/tickets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.fromEntries(new FormData(form)))
+        });
+        if (res.ok) {
+          location.href = "ticket.html?id=" + (await res.json()).ticket_id;
+          return;
+        }
+        error.textContent = "The ticket was not saved. Check the fields and try again.";
+      } catch {
+        error.textContent = "Could not reach the server. Check your connection and try again.";
+      }
+      button.disabled = false;
+      button.textContent = "Create ticket";
+    };
+  </script>
+</body>
+</html>
